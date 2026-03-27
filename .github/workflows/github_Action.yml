@@ -1,4 +1,4 @@
-name: Maven Build (Hosted)
+name: Maven Build + FCLI Setup
 
 on:
   push:
@@ -6,8 +6,12 @@ on:
   workflow_dispatch:
 
 jobs:
+
+  # -----------------------------
+  # JOB 1: Maven Build
+  # -----------------------------
   build:
-    runs-on: ubuntu-latest   # GitHub hosted runner
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Code
@@ -27,3 +31,20 @@ jobs:
       - name: Build Project
         run: |
           mvn clean install -DskipTests
+
+
+  # -----------------------------
+  # JOB 2: FCLI Installation
+  # -----------------------------
+  fcli-setup:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install FCLI
+        run: |
+          npx @fortify/setup env init --tools=fcli:auto
+          eval "$(npx @fortify/setup env shell)"
+
+      - name: Verify FCLI Version
+        run: |
+          fcli --version
