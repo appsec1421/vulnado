@@ -23,28 +23,21 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Verify Java & Maven
-        run: |
-          java -version
-          mvn -version
-
       - name: Build Project
         run: |
           mvn clean install -DskipTests
 
 
   # -----------------------------
-  # JOB 2: FCLI Installation
+  # JOB 2: FCLI Setup (runs after build)
   # -----------------------------
   fcli-setup:
+    needs: build   # 👈 THIS is the key
     runs-on: ubuntu-latest
 
     steps:
-      - name: Install FCLI
+      - name: Install & Verify FCLI
         run: |
           npx @fortify/setup env init --tools=fcli:auto
           eval "$(npx @fortify/setup env shell)"
-
-      - name: Verify FCLI Version
-        run: |
           fcli --version
