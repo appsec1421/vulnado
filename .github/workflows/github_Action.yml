@@ -1,4 +1,4 @@
-name: Maven Build + Fortify SAST (Self Hosted)
+name: Maven Build (Hosted)
 
 on:
   push:
@@ -6,39 +6,24 @@ on:
   workflow_dispatch:
 
 jobs:
-
-  # -----------------------------
-  # JOB 1: BUILD
-  # -----------------------------
   build:
-    runs-on: [self-hosted, Linux, X64, fortify]
+    runs-on: ubuntu-latest   # GitHub hosted runner
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Verify Tools
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Verify Java & Maven
         run: |
           java -version
           mvn -version
-          fcli --version
 
       - name: Build Project
         run: |
           mvn clean install -DskipTests
-
-
-  # -----------------------------
-  # JOB 2: FORTIFY SCAN
-  # -----------------------------
-  fortify-scan:
-    needs: build   # 👈 ensures build runs first
-    runs-on: [self-hosted, Linux, X64, fortify]
-
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: fcli version
-        run: |
-          fcli --version
