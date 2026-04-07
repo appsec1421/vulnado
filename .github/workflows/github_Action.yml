@@ -1,4 +1,4 @@
-name: Maven Build + FCLI Check - Self Hosted
+name: Maven Build + Fortify SAST
 
 on:
   push:
@@ -6,6 +6,10 @@ on:
   workflow_dispatch:
 
 jobs:
+
+  # -----------------------------
+  # JOB 1: BUILD
+  # -----------------------------
   build:
     runs-on: [self-hosted, Linux, X64, fortify]
 
@@ -13,15 +17,46 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Verify Java & Maven
-        run: |
-          java -version
-          mvn -version
-
       - name: Build Project
-        run: |
-          mvn clean install -DskipTests
+        run: mvn clean install -DskipTests
 
-      - name: Verify FCLI
+
+  # -----------------------------
+  # JOB 2: FORTIFY SCAN
+  # -----------------------------
+  fortify-scan:
+    needs: build
+    runs-on: [self-hosted, Linux, X64, fortify]
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: SSC Login
         run: |
-          fcli --version
+          fcli ssc session login \
+          --url https://10.40.0.246:8443/ssc \
+          -u admin -p 'CyberPWN@123' \
+          --insecure
+
+      - name: Install ScanCentral Client
+        run: fcli tool sc-client install
+
+      - name: Setup App Version
+        run: |
+          fcli ssc action run setup-appversion --av vulnado:v1
+
+      - name: Package Code
+        run: |
+          fcli tool sc-client run -- package -bt none -o package.zip
+
+      - name: Start Scan
+        run: |
+          fcli sc-sast scan start \
+          -f package.zip \
+          --publish-to vulnado:v1 \
+          --store scan1
+
+      - name: Wait for Scan
+        run: |
+          fcli sc-sast scan wait-for ::scan1::
