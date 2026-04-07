@@ -36,7 +36,7 @@ jobs:
         run: |
           fcli ssc session login \
           --url https://10.40.0.246:8443/ssc \
-          -u admin -p 'CyberPWN@123' \
+          -u admin -p 'CyberPWN@123' -c 'CyberPWN@123' \
           --insecure
 
       - name: Install ScanCentral Client
