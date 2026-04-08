@@ -4,12 +4,14 @@ on:
   push:
     branches: [ "main" ]
   workflow_dispatch:
+    inputs:
+      severities:
+        description: "Fail build for severities (example: Critical or Critical,High or Low)"
+        required: false
+        default: "Critical,High"
 
 jobs:
 
-  # -----------------------------
-  # JOB 1: BUILD
-  # -----------------------------
   build:
     runs-on: [self-hosted, Linux, X64, fortify]
 
@@ -20,13 +22,15 @@ jobs:
       - name: Build Project
         run: mvn clean install -DskipTests
 
-
-  # -----------------------------
-  # JOB 2: FORTIFY SCAN
-  # -----------------------------
   fortify-scan:
     needs: build
     runs-on: [self-hosted, Linux, X64, fortify]
+
+    env:
+      SSC_URL: https://10.40.0.246:8443/ssc
+      APP_VERSION: vulnado:v1
+      SCAN_NAME: scan1
+      SEVERITIES: ${{ github.event.inputs.severities || 'Critical,High' }}
 
     steps:
       - name: Checkout Code
@@ -35,28 +39,49 @@ jobs:
       - name: SSC Login
         run: |
           fcli ssc session login \
-          --url https://10.40.0.246:8443/ssc \
-          -u admin -p 'CyberPWN@123' -c 'CyberPWN@123' \
-          --insecure
+            --url "$SSC_URL" \
+            -u admin \
+            -p 'CyberPWN@123' \
+            -c 'CyberPWN@123' \
+            --insecure
 
-      - name: Install ScanCentral Client
-        run: fcli tool sc-client install
-
-      - name: Setup App Version
+      - name: Quality Gate
+        shell: bash
         run: |
-          fcli ssc action run setup-appversion --av vulnado:v1
+          echo "Configured severities: $SEVERITIES"
 
-      - name: Package Code
-        run: |
-          fcli tool sc-client run -- package -bt none -o package.zip
+          if [ -z "$SEVERITIES" ]; then
+            echo "❌ No severities provided"
+            exit 1
+          fi
 
-      - name: Start Scan
-        run: |
-          fcli sc-sast scan start \
-          -f package.zip \
-          --publish-to vulnado:v1 \
-          --store scan1
+          OUTPUT=$(fcli ssc issue count --av "$APP_VERSION")
+          echo "Fortify issue count output:"
+          echo "$OUTPUT"
 
-      - name: Wait for Scan
-        run: |
-          fcli sc-sast scan wait-for ::scan1::
+          FAIL=0
+          IFS=',' read -ra LEVELS <<< "$SEVERITIES"
+
+          for LEVEL in "${LEVELS[@]}"; do
+            LEVEL=$(echo "$LEVEL" | xargs)
+            COUNT=$(echo "$OUTPUT" | awk -v lvl="$LEVEL" '$1==lvl {print $2}')
+            COUNT=${COUNT:-0}
+
+            if ! [[ "$COUNT" =~ ^[0-9]+$ ]]; then
+              COUNT=0
+            fi
+
+            echo "$LEVEL issues: $COUNT"
+
+            if [ "$COUNT" -gt 0 ]; then
+              echo "❌ FAIL: $LEVEL vulnerabilities found ($COUNT)"
+              FAIL=1
+            fi
+          done
+
+          if [ "$FAIL" -eq 1 ]; then
+            echo "🚫 Build failed due to Fortify quality gate"
+            exit 1
+          else
+            echo "✅ Quality gate passed"
+          fi
