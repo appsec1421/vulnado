@@ -44,6 +44,29 @@ jobs:
             -p 'CyberPWN@123' \
             -c 'CyberPWN@123' \
             --insecure
+      
+      - name: Install ScanCentral Client
+        run: |
+          fcli tool sc-client install
+
+      - name: Setup App Version
+        run: |
+          fcli ssc action run setup-appversion --av "$APP_VERSION"
+
+      - name: Package Code
+        run: |
+          fcli tool sc-client run -- package -bt none -o package.zip
+
+      - name: Start Scan
+        run: |
+          fcli sc-sast scan start \
+            -f package.zip \
+            --publish-to "$APP_VERSION" \
+            --store "$SCAN_NAME"
+
+      - name: Wait for Scan
+        run: |
+          fcli sc-sast scan wait-for ::${SCAN_NAME}::      
 
       - name: Quality Gate
         shell: bash
